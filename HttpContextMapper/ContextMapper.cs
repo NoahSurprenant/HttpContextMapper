@@ -1,8 +1,11 @@
 ﻿#nullable disable
-using System.Linq;
+using System.Collections.Specialized;
 using System.Text;
+using System.Web;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
+using Microsoft.Net.Http.Headers;
 
 namespace HttpContextMapper;
 
@@ -37,6 +40,7 @@ public class ContextMapper : IContextMapper
     {
         HttpClientFactory = httpClientFactory;
         _logger = loggerFactory.CreateLogger<ContextMapper>();
+        UriBuilder = new UriBuilder(TargetUrlWithProtocol);
     }
 
     protected List<string> DoNotMapHeaders = new List<string>()
@@ -100,21 +104,30 @@ public class ContextMapper : IContextMapper
         //    var success = RequestMessage.Content.Headers.TryAddWithoutValidation("Content-Length", HttpContext.Request.ContentLength.Value.ToString());
         //}
         await MapToRequestHeaders();
-        
 
-        RequestMessage.RequestUri = await MapToUri();
+
+        await SetRequestUri();
         RequestMessage.Headers.Host = RequestMessage.RequestUri!.Host;
         RequestMessage.Method = new HttpMethod(HttpContext.Request.Method);
     }
 
-    protected virtual async Task<Uri> MapToUri()
+    protected UriBuilder UriBuilder;
+
+    protected virtual async Task SetRequestUri()
     {
-        var baseUrl = TargetUrlWithProtocol;
-        var path = HttpContext.Request.Path;
-        var query = HttpContext.Request.QueryString.Value;
-        
-        var uri = new Uri(baseUrl + path + query);
-        return await Task.FromResult(uri);
+        var originalQuery = HttpContext.Request.QueryString.Value;
+        var parsedQuery = HttpUtility.ParseQueryString(originalQuery!);
+
+        await SetUriBuilderPathAndQuery(HttpContext.Request.Path, parsedQuery);
+
+        RequestMessage.RequestUri = UriBuilder.Uri;
+    }
+
+    protected virtual Task SetUriBuilderPathAndQuery(PathString path, NameValueCollection query)
+    {
+        UriBuilder.Path = path;
+        UriBuilder.Query = query.ToString();
+        return Task.CompletedTask;
     }
 
     protected virtual async Task MapRequestContent()
@@ -126,7 +139,7 @@ public class ContextMapper : IContextMapper
         {
             await MapFormRequestContent();
         }
-        else if (HttpContext.Request.ContentType.Contains("application/json"))
+        else if (HttpContext.Request.ContentType?.Contains("application/json") ?? false)
         {
             await MapJsonRequestContent();
         }
@@ -277,14 +290,49 @@ public class ContextMapper : IContextMapper
         }
     }
 
-    protected virtual Task MapResponseHeader(string key, string value)
+    protected bool DisableSetCookieEncoding = false;
+
+    protected virtual Task MapSetCookieHeader(string value)
     {
-        // Is is important to use Append because Add will throw an exception if the header already exists with the same key
-        if (key is "Set-Cookie")
+        if (DisableSetCookieEncoding)
+        {
+            var cookieMapper = new CookieMapper();
+            var cookieWithOptions = cookieMapper.ExtractCookie(value);
+
+            var options = cookieWithOptions.Options;
+            var setCookieHeaderValue = new SetCookieHeaderValue(
+                    cookieWithOptions.Key,
+                    Uri.EscapeDataString(cookieWithOptions.Value))
+            {
+                Domain = options.Domain,
+                Path = options.Path,
+                Expires = options.Expires,
+                MaxAge = options.MaxAge,
+                Secure = options.Secure,
+                SameSite = (Microsoft.Net.Http.Headers.SameSiteMode)options.SameSite,
+                HttpOnly = options.HttpOnly
+            }.ToString();
+
+            var unescapedCookie = Uri.UnescapeDataString(setCookieHeaderValue);
+
+            HttpContext.Response.Headers[HeaderNames.SetCookie] = StringValues.Concat(HttpContext.Response.Headers[HeaderNames.SetCookie], unescapedCookie);
+        }
+        else
         {
             var cookieMapper = new CookieMapper();
             var cookieWithOptions = cookieMapper.ExtractCookie(value);
             HttpContext.Response.Cookies.Append(cookieWithOptions.Key, cookieWithOptions.Value, cookieWithOptions.Options);
+        }
+        
+        return Task.CompletedTask;
+    }
+
+    protected virtual async Task MapResponseHeader(string key, string value)
+    {
+        // Is is important to use Append because Add will throw an exception if the header already exists with the same key
+        if (key is "Set-Cookie")
+        {
+            await MapSetCookieHeader(value);
         }
         // If there is a status 301 (redirection) then there will be a header with Key "Location"
         // This tells the client where to go next, you'd expect this to be a relative path but it is not always so I am going to make sure we replace any
@@ -297,8 +345,6 @@ public class ContextMapper : IContextMapper
         {
             HttpContext.Response.Headers.Append(key, value);
         }
-
-        return Task.CompletedTask;
     }
 
 
@@ -322,11 +368,11 @@ public class ContextMapper : IContextMapper
     protected virtual async Task MapResponseContent()
     {
         ResponseMessage.Content.Headers.TryGetValues("Content-Type", out var contentTypes);
-        if (contentTypes.Any(x => x.Contains("text/html")))
+        if (contentTypes?.Any(x => x.Contains("text/html")) ?? false)
         {
             await MapHtmlResponseContent();
         }
-        else if (contentTypes.Any(x => x.Contains("application/json")))
+        else if (contentTypes?.Any(x => x.Contains("application/json")) ?? false)
         {
             await MapJsonResponseContent();
         }

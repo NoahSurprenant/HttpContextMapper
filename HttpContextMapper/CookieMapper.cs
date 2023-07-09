@@ -15,12 +15,12 @@ public class CookieMapper
     {
         CookieWithOptions cookie = new();
 
-        var parts = cookieString!.Split("; ");
+        var parts = cookieString!.Split(";", StringSplitOptions.TrimEntries);
         var claims = new Dictionary<string, string>();
 
         foreach (var part in parts)
         {
-            var keyValuePair = part.Split('=');
+            var keyValuePair = part.Split('=', 2);
             claims.Add(keyValuePair.First(), keyValuePair.Last());
         }
 
