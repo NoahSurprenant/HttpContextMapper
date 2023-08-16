@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Http;
 
-namespace HttpContextMapper;
+namespace HttpContextMapper.Middlewares;
 
 public class ContextMapperMiddleware
 {

@@ -61,7 +61,7 @@ public class ContextMapper : IContextMapper
 
     protected virtual HttpClient CreateClient()
     {
-        return HttpClientFactory.CreateClient("DefaultReverseProxy");
+        return HttpClientFactory.CreateClient(Contants.DefaultHttpClient);
     }
 
     public void SetTarget(string target) => TargetUrlWithProtocol = target;

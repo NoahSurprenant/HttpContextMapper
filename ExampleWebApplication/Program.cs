@@ -1,5 +1,7 @@
 using HttpContextMapper;
+using HttpContextMapper.Extensions;
 using HttpContextMapper.Html;
+using HttpContextMapper.Middlewares;
 using Microsoft.Extensions.FileProviders;
 
 namespace ExampleWebApplication
@@ -17,7 +19,7 @@ namespace ExampleWebApplication
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
-            builder.Services.RegisterDefaultReverseProxy();
+            builder.ConfigureAndRegisterDefaultHttpClientWithForwardProxy();
             builder.Services.AddScoped<IContextMapper, CustomHttpContextMapper>();
 
             var app = builder.Build();

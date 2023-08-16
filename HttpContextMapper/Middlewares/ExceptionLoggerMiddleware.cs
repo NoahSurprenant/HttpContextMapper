@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
-namespace HttpContextMapper
+namespace HttpContextMapper.Middlewares
 {
     public class ExceptionLoggerMiddleware
     {

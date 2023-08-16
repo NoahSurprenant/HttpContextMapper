@@ -5,7 +5,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
-        <Version>0.0.4-beta</Version>
+        <Version>0.0.5-beta</Version>
         <IncludeSymbols>true</IncludeSymbols>
         <SymbolPackageFormat>snupkg</SymbolPackageFormat>
         <Authors>Noah Surprenant</Authors>
